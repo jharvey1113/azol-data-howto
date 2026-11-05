@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How the Data Gets In — AZOL Hub</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%238B0000%22/%3E%3Ctext x=%2250%22 y=%2268%22 font-size=%2252%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22Arial%22 font-weight=%22bold%22%3EAZ%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=JetBrains+Mono:wght@400;600&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --red:#8B0000; --blue:#002366; --blue-deep:#001440; --surface:#fff; --bg:#f4f6fb;
+    --border:#e2e5ef; --border-light:#eef0f6; --text:#1a1d2e; --muted:#6b7194; --faint:#9ca3c4;
+    --green:#059669;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  a{color:inherit}
+
+  /* ── page chrome ── */
+  .top{background:linear-gradient(135deg,var(--blue) 0%,var(--blue-deep) 60%,var(--red) 130%);color:#fff;padding:26px 20px 24px}
+  .top-in{max-width:1240px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .eyebrow{font-weight:300;font-size:12px;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:6px}
+  h1{font-family:Outfit,sans-serif;font-weight:900;font-size:clamp(22px,3.4vw,32px);letter-spacing:-.5px}
+  .top p{color:rgba(255,255,255,.75);font-size:14px;margin-top:6px;max-width:640px}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,193,7,.18);border:1px solid rgba(255,193,7,.55);color:#ffe08a;border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+  .wrap{max-width:1240px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:20px;align-items:start}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}}
+
+  /* ── scene tabs + controls ── */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tab{border:1px solid var(--border);background:#fff;border-radius:10px;padding:7px 11px;font:700 12px 'DM Sans',sans-serif;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:7px}
+  .tab .n{width:20px;height:20px;border-radius:50%;background:var(--bg);display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+  .tab.on{border-color:var(--blue);color:var(--blue);box-shadow:0 2px 8px rgba(0,35,102,.12)}
+  .tab.on .n{background:var(--blue);color:#fff}
+  .tab.done .n{background:var(--green);color:#fff}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .btn{border:0;border-radius:10px;padding:10px 16px;font:700 13px 'DM Sans',sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+  .btn.primary{background:var(--blue);color:#fff}
+  .btn.ghost{background:#fff;color:var(--muted);border:1px solid var(--border)}
+  .btn:disabled{opacity:.45;cursor:default}
+  .speed{margin-left:auto;font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+  .speed select{border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff}
+  .progress{height:4px;background:var(--border-light);border-radius:3px;margin-top:10px;overflow:hidden}
+  .progress i{display:block;height:100%;width:0;background:var(--red);transition:width .3s}
+
+  /* ── the stage (fixed 960x560 canvas, scaled to fit) ── */
+  .stage-outer{position:relative;width:100%;border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,35,102,.12);background:#dfe3ec}
+  .stage{position:absolute;left:0;top:0;width:960px;height:560px;transform-origin:0 0;overflow:hidden;background:#fff}
+  .mock-tag{position:absolute;right:10px;top:10px;z-index:40;background:rgba(0,0,0,.55);color:#fff;font:600 10px 'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;border-radius:6px;padding:3px 8px}
+  .cursor{position:absolute;left:0;top:0;z-index:50;width:22px;height:22px;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+  .cursor.click::after{content:'';position:absolute;left:-10px;top:-10px;width:22px;height:22px;border-radius:50%;border:3px solid rgba(139,0,0,.6);animation:ripple .45s ease-out}
+  @keyframes ripple{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}
+  .hl{outline:3px solid rgba(255,193,7,.9);outline-offset:2px;border-radius:6px}
+
+  /* side panel */
+  .side{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px;position:sticky;top:16px}
+  .side h2{font-family:Outfit,sans-serif;font-size:17px;color:var(--blue);margin-bottom:2px}
+  .side .who{font-size:12px;color:var(--muted);margin-bottom:14px}
+  .steps{list-style:none;counter-reset:s}
+  .steps li{counter-increment:s;position:relative;padding:8px 0 8px 34px;font-size:13.5px;line-height:1.45;color:var(--faint);border-bottom:1px solid var(--border-light)}
+  .steps li:last-child{border:0}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:8px;width:22px;height:22px;border-radius:50%;background:var(--bg);color:var(--faint);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .steps li.on{color:var(--text)}
+  .steps li.on::before{background:var(--red);color:#fff}
+  .steps li.past{color:var(--muted)}
+  .steps li.past::before{content:'\2713';background:var(--green);color:#fff}
+  .tip{margin-top:14px;background:#fff7e6;border:1px solid #f4dcae;color:#7a4b00;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5}
+
+  /* download tray */
+  .tray{position:absolute;left:0;right:0;bottom:0;height:56px;background:#f1f3f6;border-top:1px solid #d7dbe3;display:flex;align-items:center;gap:10px;padding:0 14px;transform:translateY(100%);transition:transform .4s ease;z-index:30}
+  .tray.show{transform:none}
+  .tray .lbl{font:700 10px 'JetBrains Mono',monospace;color:#80869e;letter-spacing:1px;text-transform:uppercase;margin-right:4px}
+  .fchip{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d7dbe3;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .fchip i{color:#188038;font-size:15px}
+  .fchip small{color:#80869e;font-weight:500}
+  .flying{position:absolute;z-index:45;pointer-events:none;box-shadow:0 10px 24px rgba(0,0,0,.25)}
+
+  /* generic mock app pieces */
+  .appbar{height:48px;display:flex;align-items:center;gap:12px;padding:0 16px;color:#fff;font-weight:700;font-size:14px}
+  .appbar .sq{width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center}
+  .appbar .sub{font-weight:500;opacity:.75;font-size:12px}
+  .edu{position:absolute;inset:0;display:flex;flex-direction:column}
+  .edu .appbar{background:#2f4858}
+  .edu-body{flex:1;display:flex;min-height:0}
+  .edu-nav{width:190px;background:#f6f7f9;border-right:1px solid #e3e6ea;padding:12px 8px}
+  .nav-it{padding:9px 12px;border-radius:8px;font-size:13px;color:#46505c;display:flex;align-items:center;gap:10px;margin-bottom:2px}
+  .nav-it i{width:16px;text-align:center;color:#8a94a0}
+  .nav-it.on{background:#e3ebf3;color:#2f4858;font-weight:700}
+  .nav-sub{margin:2px 0 6px 26px;display:none}
+  .nav-sub.show{display:block}
+  .nav-sub div{padding:7px 10px;border-radius:7px;font-size:12.5px;color:#46505c}
+  .nav-sub div.on{background:#2f4858;color:#fff;font-weight:700}
+  .edu-main{flex:1;padding:18px 22px;position:relative;overflow:hidden}
+  .edu-main h3{font-family:Outfit,sans-serif;font-size:19px;color:#2f4858;margin-bottom:12px}
+  .placeholder{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .placeholder div{height:84px;border-radius:10px;background:#f2f4f7}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end}
+  .fld label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a94a0;margin-bottom:3px}
+  .sel{border:1px solid #cfd5dc;border-radius:7px;padding:7px 28px 7px 10px;font-size:12.5px;background:#fff;position:relative;min-width:140px}
+  .sel::after{content:'\25BE';position:absolute;right:10px;color:#8a94a0}
+  .sel.set{border-color:#2f4858;background:#f3f7fb}
+  .exp{position:relative}
+  .xbtn{background:#2f4858;color:#fff;border-radius:7px;padding:8px 14px;font-size:12.5px;font-weight:700;display:inline-flex;gap:7px;align-items:center}
+  .xmenu{position:absolute;right:0;top:38px;background:#fff;border:1px solid #d7dbe3;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.12);width:150px;display:none;z-index:5}
+  .xmenu.show{display:block}
+  .xmenu div{padding:8px 12px;font-size:12.5px}
+  .xmenu div.on{background:#e3ebf3;font-weight:700}
+  table.mt{width:100%;border-collapse:collapse;font-size:12px}
+  .mt th{text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#8a94a0;padding:7px 8px;border-bottom:1px solid #e3e6ea;background:#fafbfc}
+  .mt td{padding:7px 8px;border-bottom:1px solid #f0f2f5;color:#3b4450}
+  .busy{position:absolute;inset:0;background:rgba(255,255,255,.75);display:none;align-items:center;justify-content:center;gap:10px;font-weight:700;color:#2f4858;font-size:14px}
+  .busy.show{display:flex}
+
+  .drive{position:absolute;inset:0;display:flex;flex-direction:column}
+  .drive .appbar{background:#fff;color:#3c4043;border-bottom:1px solid #e3e6ea}
+  .drive .appbar .sq{background:#f4b400;color:#fff}
+  .drive-body{flex:1;display:flex;min-height:0}
+  .drive-nav{width:180px;padding:14px 10px;border-right:1px solid #eef0f2}
+  .drive-main{flex:1;padding:16px 22px;position:relative}
+  .crumb{font-size:16px;color:#3c4043;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .crumb b{font-weight:500}
+  .folders{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+  .folder{border:1px solid #dadce0;border-radius:10px;padding:13px 14px;display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#3c4043;background:#fff;transition:background .2s,border-color .2s}
+  .folder i{color:#5f6368;font-size:17px}
+  .folder.drop i{color:var(--red)}
+  .folder.over{background:#e8f0fe;border-color:#1a73e8}
+  .dropzone{border:2px dashed #c6cbd3;border-radius:12px;min-height:200px;padding:12px;transition:background .2s,border-color .2s}
+  .dropzone.over{background:#e8f0fe;border-color:#1a73e8}
+  .dz-empty{color:#80869e;text-align:center;padding-top:60px;font-size:13px}
+  .frow{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid #f0f2f5;font-size:13px;animation:pop .35s ease}
+  .frow i{color:#188038;font-size:16px}
+  .frow .m{margin-left:auto;color:#80869e;font-size:12px}
+  @keyframes pop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+  .sheet{position:absolute;inset:0;display:flex;flex-direction:column}
+  .sheet .appbar{background:#fff;color:#3c4043;border-bottom:1px solid #e3e6ea}
+  .sheet .appbar .sq{background:#188038;color:#fff}
+  .menubar{display:flex;gap:2px;padding:4px 12px;border-bottom:1px solid #e3e6ea;font-size:13px;color:#3c4043;position:relative}
+  .menubar span{padding:5px 9px;border-radius:5px}
+  .menubar span.on{background:#e8f0fe;color:#1a73e8;font-weight:700}
+  .pmenu{position:absolute;left:300px;top:32px;background:#fff;border:1px solid #d7dbe3;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.14);width:230px;display:none;z-index:6;padding:4px 0}
+  .pmenu.show{display:block}
+  .pmenu div{padding:8px 14px;font-size:13px;display:flex;gap:9px;align-items:center}
+  .pmenu div.on{background:#e8f0fe}
+  .grid{flex:1;background:repeating-linear-gradient(#fff 0 22px,#e8eaed 22px 23px),#fff;position:relative}
+  .grid::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 119px,#e8eaed 119px 120px)}
+  .run{position:absolute;right:24px;top:110px;width:420px;background:#fff;border:1px solid #d7dbe3;border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.16);padding:16px 18px;display:none;z-index:7}
+  .run.show{display:block;animation:pop .3s ease}
+  .run h4{font-family:Outfit,sans-serif;color:var(--blue);font-size:15px;margin-bottom:10px}
+  .run li{list-style:none;display:flex;gap:10px;align-items:flex-start;font-size:12.5px;padding:6px 0;color:#9aa0ae}
+  .run li i{width:16px;margin-top:2px}
+  .run li.go{color:var(--text)}
+  .run li.go i{color:#1a73e8}
+  .run li.ok{color:var(--text)}
+  .run li.ok i{color:var(--green)}
+  .stoast{position:absolute;left:24px;bottom:22px;background:#323232;color:#fff;border-radius:8px;padding:11px 16px;font-size:13px;display:none;z-index:8}
+  .stoast.show{display:block;animation:pop .3s ease}
+
+  .hub{position:absolute;inset:0;background:#f8f9fc;display:flex}
+  .hub-side{width:170px;background:linear-gradient(175deg,var(--blue),var(--blue-deep) 40%,#000c2d);color:#fff;padding:20px 14px}
+  .hub-side .ic{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--red),#a31515);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+  .hub-side b{font-family:Outfit,sans-serif;letter-spacing:3px;font-size:11px}
+  .hub-main{flex:1;padding:18px 20px}
+  .hub-head{background:linear-gradient(135deg,var(--blue) 0%,var(--blue-deep) 55%,var(--red) 118%);border-radius:12px;color:#fff;padding:22px 24px;display:flex;justify-content:space-between;align-items:flex-end}
+  .hub-head small{display:block;font-weight:300;letter-spacing:3px;font-size:11px;text-transform:uppercase;opacity:.6;margin-bottom:4px}
+  .hub-head h5{font-family:Outfit,sans-serif;font-size:22px;font-weight:900}
+  .hub-head .ts{font:12px 'JetBrains Mono',monospace;opacity:.75}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+  .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,35,102,.05),0 8px 20px rgba(0,35,102,.06)}
+  .card .v{font-family:Outfit,sans-serif;font-size:28px;font-weight:700;color:var(--blue)}
+  .card .l{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .bars{background:#fff;border-radius:12px;padding:14px 16px;margin-top:14px;box-shadow:0 1px 3px rgba(0,35,102,.05),0 8px 20px rgba(0,35,102,.06)}
+  .bar-row{display:flex;align-items:center;gap:10px;font-size:12px;margin:7px 0}
+  .bar-row span:first-child{width:150px}
+  .track{flex:1;height:9px;border-radius:5px;background:#eef0f6;overflow:hidden}
+  .track i{display:block;height:100%;width:0;transition:width 1.2s ease}
+  .refresh-flash{position:absolute;inset:0;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;color:var(--blue);z-index:4}
+
+  .intro{position:absolute;inset:0;background:linear-gradient(160deg,#f8f9fc,#eef2fb);padding:40px 44px}
+  .intro h3{font-family:Outfit,sans-serif;color:var(--blue);font-size:26px;margin-bottom:6px}
+  .intro p{color:var(--muted);font-size:15px;max-width:640px}
+  .flow{display:flex;align-items:center;gap:10px;margin-top:36px;flex-wrap:wrap}
+  .node{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 14px;width:150px;text-align:center;box-shadow:0 4px 14px rgba(0,35,102,.06);opacity:0;transform:translateY(10px);transition:.5s}
+  .node.show{opacity:1;transform:none}
+  .node i{font-size:24px;margin-bottom:8px;display:block}
+  .node b{display:block;font-size:13px;color:var(--text)}
+  .node small{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+  .arrow{color:var(--faint);opacity:0;transition:.4s}
+  .arrow.show{opacity:1}
+  .who-row{display:flex;gap:14px;margin-top:34px}
+  .who-row div{background:#fff;border-radius:10px;border:1px solid var(--border);padding:10px 14px;font-size:12.5px;color:var(--muted)}
+  .who-row b{color:var(--text)}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <div>
+    <div class="eyebrow">AZ Online Learning Hub</div>
+    <h1>How the data gets in</h1>
+    <p>Two Edgenuity reports, one Drive folder, and the hub does the rest. Press play, or click a step to jump to it.</p>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
+    <span class="pill"><i class="fa-solid fa-flask"></i>Mock-up · fictional data</span>
+    <a href="https://jharvey1113.github.io/az-online-learning-hub/" target="_blank" rel="noopener" style="color:#fff;font-size:13px;font-weight:700;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.4)">Open the demo hub <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px"></i></a>
+  </div>
+</div></header>
+
+<div class="wrap">
+  <div>
+    <div class="tabs" id="tabs"></div>
+    <div class="stage-outer" id="outer"><div class="stage" id="stage"></div></div>
+    <div class="progress"><i id="prog"></i></div>
+    <div class="controls">
+      <button class="btn ghost" id="back"><i class="fa-solid fa-backward-step"></i>Back</button>
+      <button class="btn primary" id="play"><i class="fa-solid fa-play"></i>Play</button>
+      <button class="btn ghost" id="next">Next<i class="fa-solid fa-forward-step"></i></button>
+      <button class="btn ghost" id="replay" title="Replay this step"><i class="fa-solid fa-rotate-left"></i></button>
+      <label class="speed">Speed <select id="speed"><option value="1.6">Slow</option><option value="1" selected>Normal</option><option value="0.6">Fast</option></select></label>
+    </div>
+  </div>
+  <aside class="side">
+    <h2 id="sTitle"></h2>
+    <div class="who" id="sWho"></div>
+    <ol class="steps" id="sSteps"></ol>
+    <div class="tip" id="sTip"></div>
+  </aside>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // ── dates for file names ──
+  var now = new Date();
+  var ymd = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2);
+  var mdy = (now.getMonth() + 1) + '/' + now.getDate() + '/' + now.getFullYear();
+  var ME_FILE = 'ManageEnrollments_' + ymd + '.csv', MS_FILE = 'ManageStudents_' + ymd + '.csv';
+
+  var stage = document.getElementById('stage'), outer = document.getElementById('outer');
+  var W = 960, H = 560, scale = 1;
+  function fit() { scale = outer.clientWidth / W; stage.style.transform = 'scale(' + scale + ')'; outer.style.height = (H * scale) + 'px'; }
+  window.addEventListener('resize', fit);
+
+  // ── timing that respects pause, speed and scene changes ──
+  var runId = 0, paused = true, speedF = 1;
+  function Cancel() {}
+  function wait(ms, id) {
+    return new Promise(function (res, rej) {
+      var t = 0;
+      (function tick() {
+        if (id !== runId) return rej(new Cancel());
+        if (!paused) t += 50 / speedF;
+        if (t >= ms) res(); else setTimeout(tick, 50);
+      })();
+    });
+  }
+  function $(sel) { return stage.querySelector(sel); }
+  function pos(el) {
+    var r = el.getBoundingClientRect(), s = stage.getBoundingClientRect();
+    return { x: (r.left - s.left + r.width / 2) / scale, y: (r.top - s.top + r.height / 2) / scale, w: r.width / scale, h: r.height / scale, l: (r.left - s.left) / scale, t: (r.top - s.top) / scale };
+  }
+  // Script-driven motion (not CSS transitions) so Pause freezes it mid-move.
+  function ease(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function tween(ms, id, step) {
+    return new Promise(function (res, rej) {
+      var t = 0;
+      (function tick() {
+        if (id !== runId) return rej(new Cancel());
+        if (!paused) t += 30 / speedF;
+        var k = Math.min(1, t / ms);
+        step(ease(k));
+        if (k >= 1) res(); else setTimeout(tick, 30);
+      })();
+    });
+  }
+  var cursor, cx = 480, cy = 300;
+  function placeCursor(x, y) { cx = x; cy = y; cursor.style.transform = 'translate(' + x + 'px,' + y + 'px)'; }
+  function glide(x, y, id, ms) {
+    var x0 = cx, y0 = cy;
+    return tween(ms || 850, id, function (k) { placeCursor(x0 + (x - x0) * k, y0 + (y - y0) * k); });
+  }
+  async function moveTo(sel, id, dx, dy) {
+    var p = pos(typeof sel === 'string' ? $(sel) : sel);
+    await glide(p.x + (dx || 0), p.y + (dy || 0), id);
+    await wait(120, id);
+  }
+  function click(id) {
+    cursor.classList.remove('click'); void cursor.offsetWidth; cursor.classList.add('click');
+    return wait(350, id);
+  }
+  async function clickOn(sel, id, dx, dy) { await moveTo(sel, id, dx, dy); await click(id); }
+  function hl(sel, on) { var e = $(sel); if (e) e.classList.toggle('hl', on !== false); }
+  function setStep(i) {
+    [].forEach.call(document.querySelectorAll('#sSteps li'), function (li, k) {
+      li.className = k < i ? 'past' : k === i ? 'on' : '';
+    });
+  }
+  function fchip(name, rows) { return '<div class="fchip"><i class="fa-solid fa-file-csv"></i>' + name + '<small>' + rows + '</small></div>'; }
+  async function fly(fromEl, toEl, id) {
+    var a = pos(fromEl), b = pos(toEl);
+    var c = fromEl.cloneNode(true); c.classList.add('flying');
+    await glide(a.x, a.y, id);
+    c.style.left = a.l + 'px'; c.style.top = a.t + 'px';
+    stage.appendChild(c); fromEl.style.opacity = '.35';
+    await wait(200, id);
+    var dx = b.x - a.x, dy = b.y - a.y;
+    try {
+      await tween(1000, id, function (k) {
+        c.style.transform = 'translate(' + dx * k + 'px,' + dy * k + 'px) scale(' + (1 - .1 * k) + ')';
+        placeCursor(a.x + dx * k, a.y + dy * k);
+      });
+    } finally { c.remove(); }
+    fromEl.style.display = 'none';
+  }
+
+  // ── reusable Educator-site mock ──
+  function eduHtml(sub) {
+    return '<div class="edu"><div class="appbar"><span class="sq"><i class="fa-solid fa-graduation-cap"></i></span>Educator site<span class="sub">AZ Online Learning · Admin</span></div>' +
+      '<div class="edu-body"><div class="edu-nav">' +
+      '<div class="nav-it on" id="nHome"><i class="fa-solid fa-house"></i>Home</div>' +
+      '<div class="nav-it"><i class="fa-solid fa-user-group"></i>Students</div>' +
+      '<div class="nav-it"><i class="fa-solid fa-book-open"></i>Classes</div>' +
+      '<div class="nav-it" id="nRep"><i class="fa-solid fa-chart-column"></i>Reports</div>' +
+      '<div class="nav-sub" id="nSub"><div>Progress Report</div><div id="nME">Manage Enrollments</div><div id="nMS">Manage Students</div><div>Gradebook</div></div>' +
+      '</div><div class="edu-main" id="main"><h3>Welcome back</h3><div class="placeholder"><div></div><div></div><div></div><div></div><div></div><div></div></div></div></div>' +
+      '<div class="tray" id="tray"><span class="lbl">Downloads</span>' + (sub || '') + '</div></div>';
+  }
+  function reportHtml(title, filters, cols, rows) {
+    return '<h3>' + title + '</h3><div class="filters">' + filters.map(function (f, i) {
+      return '<div class="fld"><label>' + f[0] + '</label><div class="sel" id="f' + i + '" data-v="' + f[1] + '">' + f[2] + '</div></div>';
+    }).join('') + '<div class="exp" style="margin-left:auto"><div class="xbtn" id="xbtn"><i class="fa-solid fa-download"></i>Export</div>' +
+      '<div class="xmenu" id="xmenu"><div id="xcsv">CSV (.csv)</div><div>Excel (.xlsx)</div><div>PDF</div></div></div></div>' +
+      '<table class="mt"><tr>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr>' +
+      rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>' +
+      '<div class="busy" id="busy"><i class="fa-solid fa-spinner fa-spin"></i>Preparing export…</div>';
+  }
+  async function pickFilters(n, id) {
+    for (var i = 0; i < n; i++) {
+      var f = $('#f' + i);
+      await clickOn(f, id);
+      f.textContent = f.getAttribute('data-v'); f.classList.add('set');
+      await wait(250, id);
+    }
+  }
+
+  var ME_ROWS = [['Reyes, Sofia', '10', 'Geometry A', '61.4%', '-4.2%', '84.1%'], ['Nguyen, Caleb', '11', 'U.S. History A', '40.2%', '-26.8%', '71.0%'],
+    ['Brooks, Maya', '12', 'English 12 A', '72.9%', '5.9%', '92.3%'], ['Ortiz, Julian', '9', 'Biology A', '18.0%', '-49.0%', '58.7%'], ['Patel, Aria', '11', 'Algebra II A', '66.5%', '-0.5%', '88.9%']];
+  var MS_ROWS = [['Reyes, Sofia', '7310442', '310442', mdy + ' 9:14 AM'], ['Nguyen, Caleb', '7352817', '352817', mdy + ' 7:52 AM'],
+    ['Brooks, Maya', '7366120', '366120', mdy + ' 10:03 AM'], ['Ortiz, Julian', '7381903', '381903', '10/22/' + now.getFullYear()], ['Patel, Aria', '7329571', '329571', mdy + ' 8:40 AM']];
+
+  async function exportReport(navId, title, filters, cols, rows, file, count, id, base) {
+    setStep(base);
+    await clickOn('#nRep', id); $('#nHome').classList.remove('on'); $('#nRep').classList.add('on'); $('#nSub').classList.add('show');
+    await wait(300, id);
+    await clickOn(navId, id); $(navId).classList.add('on');
+    $('#main').innerHTML = reportHtml(title, filters, cols, rows);
+    await wait(500, id);
+    setStep(base + 1);
+    await pickFilters(filters.length, id);
+    await wait(300, id);
+    setStep(base + 2);
+    await clickOn('#xbtn', id); $('#xmenu').classList.add('show');
+    await wait(300, id);
+    await clickOn('#xcsv', id); $('#xcsv').classList.add('on');
+    await wait(200, id);
+    $('#xmenu').classList.remove('show'); $('#busy').classList.add('show');
+    await wait(1400, id);
+    $('#busy').classList.remove('show');
+    setStep(base + 3);
+    var tray = $('#tray'); tray.classList.add('show');
+    tray.insertAdjacentHTML('beforeend', fchip(file, count));
+    hl('#tray .fchip:last-child'); await wait(1600, id); hl('#tray .fchip:last-child', false);
+  }
+
+  // ── scenes ──
+  var SCENES = [
+    {
+      title: 'The big picture', who: 'About 2 minutes, once each school morning',
+      steps: ['Download two reports from the Edgenuity Educator site', 'Drop both files in the shared Drive folder', 'The pipeline scores every course and student', 'The hub shows the new numbers'],
+      tip: 'Only two files are touched by hand. Everything after the drop (tiers, call list, emails, attendance) is automatic.',
+      html: '<div class="intro"><h3>From Edgenuity to the hub</h3><p>Staff export two reports each morning and drop them in one Drive folder. A Google Apps Script pipeline reads them, scores each course, and the hub reads the results.</p>' +
+        '<div class="flow">' +
+        '<div class="node" id="n1"><i class="fa-solid fa-graduation-cap" style="color:#2f4858"></i><b>Edgenuity</b><small>Manage Enrollments + Manage Students</small></div><i class="fa-solid fa-arrow-right arrow" id="a1"></i>' +
+        '<div class="node" id="n2"><i class="fa-solid fa-folder-open" style="color:#f4b400"></i><b>Drive: 1. Drop</b><small>both CSVs</small></div><i class="fa-solid fa-arrow-right arrow" id="a2"></i>' +
+        '<div class="node" id="n3"><i class="fa-solid fa-gears" style="color:#188038"></i><b>Pipeline</b><small>Apps Script, runs each morning</small></div><i class="fa-solid fa-arrow-right arrow" id="a3"></i>' +
+        '<div class="node" id="n4"><i class="fa-solid fa-gauge-high" style="color:#8B0000"></i><b>Hub</b><small>tiers, call list, emails</small></div></div>' +
+        '<div class="who-row"><div><b>Manage Enrollments</b>: one row per student per course (grade, progress, target, pacing)</div><div><b>Manage Students</b>: one row per student (last login)</div></div></div>',
+      run: async function (id) {
+        for (var i = 1; i <= 4; i++) {
+          setStep(i - 1);
+          $('#n' + i).classList.add('show'); await wait(700, id);
+          if (i < 4) { $('#a' + i).classList.add('show'); await wait(500, id); }
+        }
+        await wait(1500, id);
+      }
+    },
+    {
+      title: 'Download Manage Enrollments', who: 'Edgenuity Educator site',
+      steps: ['Open Reports, then Manage Enrollments', 'Set the filters: your school, Active enrollments, all columns', 'Click Export and choose CSV', 'The file lands in Downloads'],
+      tip: 'This is the main report: one row per student per course. The pipeline needs Name, External ID, Course, Actual Grade, Progress, Target Progress and Last Gradebook Entry.',
+      html: eduHtml(''),
+      run: async function (id) {
+        await wait(400, id);
+        await exportReport('#nME', 'Manage Enrollments',
+          [['School', 'AZ Online Learning', 'Select school'], ['Enrollment status', 'Active', 'Any status'], ['Columns', 'All columns', 'Default columns']],
+          ['Student', 'Grade', 'Course', 'Progress', 'Pacing', 'Grade %'], ME_ROWS, ME_FILE, '1,264 rows', id, 0);
+        await wait(800, id);
+      }
+    },
+    {
+      title: 'Download Manage Students', who: 'Edgenuity Educator site',
+      steps: ['Open Reports, then Manage Students', 'Set the filters: your school, Active students', 'Click Export and choose CSV', 'Both files are now in Downloads'],
+      tip: 'This one is for attendance. Its Last Login column is what decides "Active" vs. "Inactive 5+ days", which is more accurate than the last gradebook entry.',
+      html: eduHtml(fchip(ME_FILE, '1,264 rows')),
+      run: async function (id) {
+        $('#tray').classList.add('show');
+        await wait(400, id);
+        await exportReport('#nMS', 'Manage Students',
+          [['School', 'AZ Online Learning', 'Select school'], ['Status', 'Active', 'Any status']],
+          ['Student', 'User ID', 'External ID', 'Last Login'], MS_ROWS, MS_FILE, '216 rows', id, 0);
+        await wait(800, id);
+      }
+    },
+    {
+      title: 'Drop both files in Drive', who: 'Google Drive · shared folder',
+      steps: ['Open the shared folder AZOL Hub Data', 'Open the 1. Drop folder', 'Drag in Manage Enrollments', 'Drag in Manage Students'],
+      tip: 'File names don\'t matter: the pipeline tells the two reports apart by their columns and dates them by when they were dropped.',
+      html: '<div class="drive"><div class="appbar"><span class="sq"><i class="fa-solid fa-folder"></i></span>Drive</div><div class="drive-body">' +
+        '<div class="drive-nav"><div class="nav-it"><i class="fa-solid fa-hard-drive"></i>My Drive</div><div class="nav-it on" id="dShared"><i class="fa-solid fa-users"></i>Shared drives</div><div class="nav-it"><i class="fa-regular fa-clock"></i>Recent</div></div>' +
+        '<div class="drive-main" id="dmain"><div class="crumb"><b>Shared drives</b></div><div class="folders"><div class="folder" id="fHub"><i class="fa-solid fa-folder"></i>AZOL Hub Data</div><div class="folder"><i class="fa-solid fa-folder"></i>Counseling</div><div class="folder"><i class="fa-solid fa-folder"></i>Registrar</div></div></div></div>' +
+        '<div class="tray show" id="tray"><span class="lbl">Downloads</span>' + fchip(ME_FILE, '1,264 rows') + fchip(MS_FILE, '216 rows') + '</div></div>',
+      run: async function (id) {
+        setStep(0); await wait(400, id);
+        await clickOn('#fHub', id); await clickOn('#fHub', id);
+        $('#dmain').innerHTML = '<div class="crumb">Shared drives <i class="fa-solid fa-chevron-right" style="font-size:11px;color:#9aa0a6"></i> <b>AZOL Hub Data</b></div>' +
+          '<div class="folders"><div class="folder drop" id="fDrop"><i class="fa-solid fa-folder"></i>1. Drop</div><div class="folder"><i class="fa-solid fa-folder"></i>2. Working</div><div class="folder"><i class="fa-solid fa-folder"></i>3. Archive</div></div>';
+        await wait(600, id);
+        setStep(1);
+        await clickOn('#fDrop', id); await clickOn('#fDrop', id);
+        $('#dmain').innerHTML = '<div class="crumb">Shared drives <i class="fa-solid fa-chevron-right" style="font-size:11px;color:#9aa0a6"></i> AZOL Hub Data <i class="fa-solid fa-chevron-right" style="font-size:11px;color:#9aa0a6"></i> <b>1. Drop</b></div>' +
+          '<div class="dropzone" id="dz"><div class="dz-empty" id="dzE"><i class="fa-solid fa-cloud-arrow-up" style="font-size:28px;display:block;margin-bottom:8px"></i>Drop files here</div></div>';
+        await wait(600, id);
+        var chips = stage.querySelectorAll('#tray .fchip');
+        var names = [[ME_FILE, '1,264 rows'], [MS_FILE, '216 rows']];
+        for (var i = 0; i < 2; i++) {
+          setStep(2 + i);
+          $('#dz').classList.add('over');
+          await fly(chips[i], $('#dz'), id);
+          $('#dz').classList.remove('over');
+          var e = $('#dzE'); if (e) e.remove();
+          $('#dz').insertAdjacentHTML('beforeend', '<div class="frow"><i class="fa-solid fa-file-csv"></i>' + names[i][0] + '<span class="m">' + names[i][1] + ' · just now</span></div>');
+          await wait(700, id);
+        }
+        await wait(1200, id);
+      }
+    },
+    {
+      title: 'The pipeline runs', who: 'Google Sheet · Apps Script',
+      steps: ['It runs on its own each morning, or anyone can run it from the menu', 'It reads both reports and matches students', 'It scores every course and sets each student\'s tier', 'It archives the files and empties the Drop folder'],
+      tip: 'Tier rule: grade under 70% +1, under 55% +1; progress 10–20% behind target +1, 20%+ behind +2; no login in 5 school days +2. Score 0 = Tier 1, 1–2 = Tier 2, 3–4 = Tier 3, 5+ = Tier 4.',
+      html: '<div class="sheet"><div class="appbar"><span class="sq"><i class="fa-solid fa-table"></i></span>AZOL Hub — Manage Enrollments Pipeline</div>' +
+        '<div class="menubar"><span>File</span><span>Edit</span><span>View</span><span>Insert</span><span>Format</span><span>Data</span><span id="mPipe"><i class="fa-solid fa-gears" style="margin-right:5px"></i>Pipeline</span>' +
+        '<div class="pmenu" id="pmenu"><div id="pRun"><i class="fa-solid fa-play"></i>Run pipeline now</div><div><i class="fa-regular fa-clock"></i>Install daily auto-run</div></div></div>' +
+        '<div class="grid"></div>' +
+        '<div class="run" id="run"><h4><i class="fa-solid fa-gears" style="margin-right:6px"></i>Running pipeline…</h4><ul>' +
+        '<li id="r0"><i class="fa-regular fa-circle"></i>Found 2 reports in 1. Drop</li>' +
+        '<li id="r1"><i class="fa-regular fa-circle"></i>Read 1,264 enrollments for 216 students</li>' +
+        '<li id="r2"><i class="fa-regular fa-circle"></i>Matched last logins for 209 students</li>' +
+        '<li id="r3"><i class="fa-regular fa-circle"></i>Scored every course → Tier 1–4 (worst course wins)</li>' +
+        '<li id="r4"><i class="fa-regular fa-circle"></i>Applied life-event holds and new-student grace</li>' +
+        '<li id="r5"><i class="fa-regular fa-circle"></i>Wrote AZOL_Imported_Daily + Newest ME Feed</li>' +
+        '<li id="r6"><i class="fa-regular fa-circle"></i>Archived as "Manage Enrollments ' + ymd + '.csv"</li>' +
+        '</ul></div><div class="stoast" id="stoast"><i class="fa-solid fa-circle-check" style="color:#81c995;margin-right:8px"></i>Pipeline finished · data as of ' + mdy + '</div></div>',
+      run: async function (id) {
+        setStep(0); await wait(500, id);
+        await clickOn('#mPipe', id); $('#mPipe').classList.add('on'); $('#pmenu').classList.add('show');
+        await wait(300, id);
+        await clickOn('#pRun', id); $('#pRun').classList.add('on');
+        await wait(250, id);
+        $('#pmenu').classList.remove('show'); $('#mPipe').classList.remove('on');
+        $('#run').classList.add('show');
+        await glide(900, 520, id);
+        var stepFor = [1, 1, 1, 2, 2, 2, 3];
+        for (var i = 0; i < 7; i++) {
+          setStep(stepFor[i]);
+          var li = $('#r' + i); li.className = 'go'; li.querySelector('i').className = 'fa-solid fa-spinner fa-spin';
+          await wait(i === 3 ? 1300 : 750, id);
+          li.className = 'ok'; li.querySelector('i').className = 'fa-solid fa-circle-check';
+        }
+        $('#run h4').innerHTML = '<i class="fa-solid fa-circle-check" style="margin-right:6px;color:#059669"></i>Pipeline complete';
+        $('#stoast').classList.add('show');
+        await wait(2200, id);
+      }
+    },
+    {
+      title: 'The hub updates', who: 'AZ Online Learning Hub',
+      steps: ['Open the hub (or click refresh)', 'Tiers, inactive list and call list reflect today\'s reports', 'Tier emails, attendance and outreach all work from this data'],
+      tip: 'Nobody re-enters anything. The same two files drive the dashboard, the Outreach Call List, the tiered emails and the attendance email.',
+      html: '<div class="hub"><div class="hub-side"><div class="ic"><i class="fa-solid fa-tower-broadcast"></i></div><b>AZOL HUB</b></div><div class="hub-main" style="position:relative">' +
+        '<div class="hub-head"><div><small>AZ Online Learning Hub</small><h5>Staff Command Center</h5></div><div class="ts" id="hts">Data as of yesterday</div></div>' +
+        '<div class="cards"><div class="card"><div class="v" id="c0">—</div><div class="l">Active students</div></div><div class="card"><div class="v" id="c1" style="color:#8B0000">—</div><div class="l">Inactive 5+ days</div></div>' +
+        '<div class="card"><div class="v" id="c2" style="color:#b45309">—</div><div class="l">Tier 3</div></div><div class="card"><div class="v" id="c3" style="color:#8B0000">—</div><div class="l">Tier 4</div></div></div>' +
+        '<div class="bars"><div style="font-weight:700;font-size:13px;color:var(--blue);margin-bottom:4px">Students by tier</div>' +
+        '<div class="bar-row"><span>Tier 1 · On track</span><div class="track"><i id="b1" style="background:#10b981"></i></div><b id="t1">—</b></div>' +
+        '<div class="bar-row"><span>Tier 2 · Monitor</span><div class="track"><i id="b2" style="background:#3b82f6"></i></div><b id="t2">—</b></div>' +
+        '<div class="bar-row"><span>Tier 3 · Significant concern</span><div class="track"><i id="b3" style="background:#d97706"></i></div><b id="t3">—</b></div>' +
+        '<div class="bar-row"><span>Tier 4 · Critical</span><div class="track"><i id="b4" style="background:#8B0000"></i></div><b id="t4">—</b></div></div>' +
+        '<div class="refresh-flash" id="rf" style="display:none"><i class="fa-solid fa-rotate fa-spin"></i>Loading today\'s data…</div></div></div>',
+      run: async function (id) {
+        setStep(0); await wait(500, id);
+        await clickOn('#hts', id);
+        $('#rf').style.display = 'flex'; await wait(1100, id); $('#rf').style.display = 'none';
+        $('#hts').textContent = 'Data as of ' + mdy;
+        setStep(1);
+        var targets = [209, 14, 35, 14], tiers = [91, 69, 35, 14];
+        for (var k = 0; k <= 20; k++) {
+          targets.forEach(function (t, i) { $('#c' + i).textContent = Math.round(t * k / 20); });
+          await wait(40, id);
+        }
+        tiers.forEach(function (t, i) { $('#b' + (i + 1)).style.width = Math.round(t / 91 * 100) + '%'; $('#t' + (i + 1)).textContent = t; });
+        await wait(1400, id);
+        setStep(2);
+        await wait(2400, id);
+      }
+    }
+  ];
+
+  // ── player ──
+  var cur = 0, done = {};
+  var tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = SCENES.map(function (s, i) { return '<button class="tab" data-i="' + i + '"><span class="n">' + (i + 1) + '</span>' + s.title + '</button>'; }).join('');
+  [].forEach.call(tabsEl.children, function (b) { b.onclick = function () { go(+b.getAttribute('data-i'), true); }; });
+
+  function paint() {
+    [].forEach.call(tabsEl.children, function (b, i) { b.className = 'tab' + (i === cur ? ' on' : '') + (done[i] && i !== cur ? ' done' : ''); });
+    document.getElementById('back').disabled = cur === 0;
+    document.getElementById('next').disabled = cur === SCENES.length - 1;
+    document.getElementById('prog').style.width = ((cur + (done[cur] ? 1 : 0)) / SCENES.length * 100) + '%';
+    var p = document.getElementById('play');
+    p.innerHTML = paused ? '<i class="fa-solid fa-play"></i>Play' : '<i class="fa-solid fa-pause"></i>Pause';
+  }
+  function go(i, fromUser) {
+    cur = i; runId++;
+    var s = SCENES[i], id = runId;
+    stage.innerHTML = s.html + '<span class="mock-tag">Mock-up</span>' +
+      '<svg class="cursor" viewBox="0 0 24 24"><path d="M3 2l7 19 2.6-7.4L20 11z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    cursor = stage.querySelector('.cursor');
+
+    placeCursor(i === 0 ? 1200 : 480, 300);
+    document.getElementById('sTitle').textContent = (i + 1) + '. ' + s.title;
+    document.getElementById('sWho').textContent = s.who;
+    document.getElementById('sSteps').innerHTML = s.steps.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+    document.getElementById('sTip').innerHTML = '<i class="fa-solid fa-lightbulb" style="margin-right:6px"></i>' + s.tip;
+    if (fromUser && paused) { paused = false; }
+    paint();
+    s.run(id).then(function () {
+      if (id !== runId) return;
+      setStep(s.steps.length);
+      done[i] = true; paint();
+      if (i < SCENES.length - 1) return wait(900, id).then(function () { go(i + 1); });
+      paused = true; paint();
+    }).catch(function (e) { if (!(e instanceof Cancel)) console.error(e); });
+  }
+  document.getElementById('play').onclick = function () {
+    if (paused && done[cur] && cur === SCENES.length - 1) { paused = false; go(0); return; }
+    paused = !paused; paint();
+  };
+  document.getElementById('next').onclick = function () { if (cur < SCENES.length - 1) go(cur + 1, true); };
+  document.getElementById('back').onclick = function () { if (cur > 0) go(cur - 1, true); };
+  document.getElementById('replay').onclick = function () { go(cur, true); };
+  document.getElementById('speed').onchange = function (e) { speedF = parseFloat(e.target.value); };
+  document.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'SELECT') return;
+    if (e.key === ' ') { e.preventDefault(); document.getElementById('play').click(); }
+    if (e.key === 'ArrowRight') document.getElementById('next').click();
+    if (e.key === 'ArrowLeft') document.getElementById('back').click();
+  });
+
+  fit();
+  go(0);
+})();
+</script>
+</body>
+</html>
