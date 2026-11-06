@@ -167,7 +167,7 @@
   .hub-head small{display:block;font-weight:300;letter-spacing:3px;font-size:11px;text-transform:uppercase;opacity:.6;margin-bottom:4px}
   .hub-head h5{font-family:Outfit,sans-serif;font-size:22px;font-weight:900}
   .hub-head .ts{font:12px 'JetBrains Mono',monospace;opacity:.75}
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+  .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}
   .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,35,102,.05),0 8px 20px rgba(0,35,102,.06)}
   .card .v{font-family:Outfit,sans-serif;font-size:28px;font-weight:700;color:var(--blue)}
   .card .l{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
@@ -192,6 +192,8 @@
   .who-row{display:flex;gap:14px;margin-top:34px}
   .who-row div{background:#fff;border-radius:10px;border:1px solid var(--border);padding:10px 14px;font-size:12.5px;color:var(--muted)}
   .who-row b{color:var(--text)}
+  body.embed .top{display:none}
+  body.embed .wrap{padding-top:14px}
 </style>
 </head>
 <body>
@@ -457,7 +459,7 @@
     },
     {
       title: 'The pipeline runs', who: 'Google Sheet · Apps Script',
-      steps: ['It runs on its own each morning, or anyone can run it from the menu', 'It reads both reports and matches students', 'It scores every course and sets each student\'s tier', 'It archives the files and empties the Drop folder'],
+      steps: ['It runs on its own each morning, or anyone can run it from the menu', 'It reads both reports and matches students', 'It scores every course, sets each student\'s tier, and checks for progress spikes', 'It archives the files and empties the Drop folder'],
       tip: 'Tier rule: grade under 70% +1, under 55% +1; progress 10–20% behind target +1, 20%+ behind +2; no login in 5 school days +2. Score 0 = Tier 1, 1–2 = Tier 2, 3–4 = Tier 3, 5+ = Tier 4.',
       html: '<div class="sheet"><div class="appbar"><span class="sq"><i class="fa-solid fa-table"></i></span>AZOL Hub — Manage Enrollments Pipeline</div>' +
         '<div class="menubar"><span>File</span><span>Edit</span><span>View</span><span>Insert</span><span>Format</span><span>Data</span><span id="mPipe"><i class="fa-solid fa-gears" style="margin-right:5px"></i>Pipeline</span>' +
@@ -469,8 +471,9 @@
         '<li id="r2"><i class="fa-regular fa-circle"></i>Matched last logins for 209 students</li>' +
         '<li id="r3"><i class="fa-regular fa-circle"></i>Scored every course → Tier 1–4 (worst course wins)</li>' +
         '<li id="r4"><i class="fa-regular fa-circle"></i>Applied life-event holds and new-student grace</li>' +
-        '<li id="r5"><i class="fa-regular fa-circle"></i>Wrote AZOL_Imported_Daily + Newest ME Feed</li>' +
-        '<li id="r6"><i class="fa-regular fa-circle"></i>Archived as "Manage Enrollments ' + ymd + '.csv"</li>' +
+        '<li id="r5"><i class="fa-regular fa-circle"></i>Spike Radar: compared each student with their own pace (10 to review)</li>' +
+        '<li id="r6"><i class="fa-regular fa-circle"></i>Wrote AZOL_Imported_Daily + Newest ME Feed</li>' +
+        '<li id="r7"><i class="fa-regular fa-circle"></i>Archived as "Manage Enrollments ' + ymd + '.csv"</li>' +
         '</ul></div><div class="stoast" id="stoast"><i class="fa-solid fa-circle-check" style="color:#81c995;margin-right:8px"></i>Pipeline finished · data as of ' + mdy + '</div></div>',
       run: async function (id) {
         setStep(0); await wait(500, id);
@@ -481,8 +484,8 @@
         $('#pmenu').classList.remove('show'); $('#mPipe').classList.remove('on');
         $('#run').classList.add('show');
         await glide(900, 520, id);
-        var stepFor = [1, 1, 1, 2, 2, 2, 3];
-        for (var i = 0; i < 7; i++) {
+        var stepFor = [1, 1, 1, 2, 2, 2, 2, 3];
+        for (var i = 0; i < 8; i++) {
           setStep(stepFor[i]);
           var li = $('#r' + i); li.className = 'go'; li.querySelector('i').className = 'fa-solid fa-spinner fa-spin';
           await wait(i === 3 ? 1300 : 750, id);
@@ -495,12 +498,12 @@
     },
     {
       title: 'The hub updates', who: 'AZ Online Learning Hub',
-      steps: ['Open the hub (or click refresh)', 'Tiers, inactive list and call list reflect today\'s reports', 'Tier emails, attendance and outreach all work from this data'],
+      steps: ['Open the hub (or click refresh)', 'Tiers, inactive list, call list and Progress Spikes reflect today\'s reports', 'Tier emails, attendance and outreach all work from this data'],
       tip: 'Nobody re-enters anything. The same two files drive the dashboard, the Outreach Call List, the tiered emails and the attendance email.',
       html: '<div class="hub"><div class="hub-side"><div class="ic"><i class="fa-solid fa-tower-broadcast"></i></div><b>AZOL HUB</b></div><div class="hub-main" style="position:relative">' +
         '<div class="hub-head"><div><small>AZ Online Learning Hub</small><h5>Staff Command Center</h5></div><div class="ts" id="hts">Data as of yesterday</div></div>' +
         '<div class="cards"><div class="card"><div class="v" id="c0">—</div><div class="l">Active students</div></div><div class="card"><div class="v" id="c1" style="color:#8B0000">—</div><div class="l">Inactive 5+ days</div></div>' +
-        '<div class="card"><div class="v" id="c2" style="color:#b45309">—</div><div class="l">Tier 3</div></div><div class="card"><div class="v" id="c3" style="color:#8B0000">—</div><div class="l">Tier 4</div></div></div>' +
+        '<div class="card"><div class="v" id="c2" style="color:#b45309">—</div><div class="l">Tier 3</div></div><div class="card"><div class="v" id="c3" style="color:#8B0000">—</div><div class="l">Tier 4</div></div><div class="card"><div class="v" id="c4" style="color:#d97706">—</div><div class="l">Progress spikes</div></div></div>' +
         '<div class="bars"><div style="font-weight:700;font-size:13px;color:var(--blue);margin-bottom:4px">Students by tier</div>' +
         '<div class="bar-row"><span>Tier 1 · On track</span><div class="track"><i id="b1" style="background:#10b981"></i></div><b id="t1">—</b></div>' +
         '<div class="bar-row"><span>Tier 2 · Monitor</span><div class="track"><i id="b2" style="background:#3b82f6"></i></div><b id="t2">—</b></div>' +
@@ -513,7 +516,7 @@
         $('#rf').style.display = 'flex'; await wait(1100, id); $('#rf').style.display = 'none';
         $('#hts').textContent = 'Data as of ' + mdy;
         setStep(1);
-        var targets = [209, 14, 35, 14], tiers = [91, 69, 35, 14];
+        var targets = [209, 14, 35, 14, 10], tiers = [91, 69, 35, 14];
         for (var k = 0; k <= 20; k++) {
           targets.forEach(function (t, i) { $('#c' + i).textContent = Math.round(t * k / 20); });
           await wait(40, id);
@@ -560,6 +563,7 @@
       done[i] = true; paint();
       if (i < SCENES.length - 1) return wait(900, id).then(function () { go(i + 1); });
       paused = true; paint();
+      if (EMBED && window.parent !== window) window.parent.postMessage('azol-howto-done', '*');
     }).catch(function (e) { if (!(e instanceof Cancel)) console.error(e); });
   }
   document.getElementById('play').onclick = function () {
@@ -577,6 +581,9 @@
     if (e.key === 'ArrowLeft') document.getElementById('back').click();
   });
 
+  // ?embed=1: shown inside the demo hub. No page header, and it starts playing.
+  var EMBED = /[?&]embed=1/.test(location.search);
+  if (EMBED) { document.body.classList.add('embed'); paused = false; }
   fit();
   go(0);
 })();
